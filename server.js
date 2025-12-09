@@ -16,6 +16,10 @@ function saveTokens() {
   fs.writeFileSync("tokens.json", JSON.stringify(tokens, null, 2));
 }
 
+app.get("/", (req, res) => {
+  res.send("AlertAID backend is running.");
+});
+
 // 1. Register push token from your Expo app
 app.post("/register", (req, res) => {
   const { token } = req.body;
