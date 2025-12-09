@@ -1,9 +1,15 @@
 import express from "express";
 import fetch from "node-fetch";
 import fs from "fs";
+import https from "https";
 
 const app = express();
 app.use(express.json());
+
+// Disable SSL verification only for PHIVOLCS
+const insecureAgent = new https.Agent({
+  rejectUnauthorized: false,
+});
 
 // Load tokens
 let tokens = [];
@@ -16,11 +22,12 @@ function saveTokens() {
   fs.writeFileSync("tokens.json", JSON.stringify(tokens, null, 2));
 }
 
+// DEBUG root route
 app.get("/", (req, res) => {
   res.send("AlertAID backend is running.");
 });
 
-// 1. Register push token from your Expo app
+// Register push token
 app.post("/register", (req, res) => {
   const { token } = req.body;
 
@@ -29,15 +36,20 @@ app.post("/register", (req, res) => {
   if (!tokens.includes(token)) {
     tokens.push(token);
     saveTokens();
+    console.log("New token saved:", token);
+  } else {
+    console.log("Token already exists:", token);
   }
 
   res.send("Token saved");
 });
 
-// 2. Weather + Earthquake Check & Send Alerts
+// Weather + Earthquake alerts
 app.get("/run-alerts", async (req, res) => {
+  console.log("Running automated alert scan...");
+
   try {
-    // Weather API (Open-Meteo)
+    // --- WEATHER ---
     const weatherURL =
       "https://api.open-meteo.com/v1/forecast?latitude=10.387&longitude=123.6502&hourly=temperature_2m,rain,wind_speed_10m";
 
@@ -45,28 +57,45 @@ app.get("/run-alerts", async (req, res) => {
     const weatherData = await weatherRes.json();
 
     const rain = weatherData.hourly?.rain?.[0] ?? 0;
+    console.log("Rain level:", rain);
 
     let message = null;
 
     if (rain > 20) {
-      message = "Severe rainfall detected in Toledo City. Stay alert for flooding.";
+      message =
+        "Severe rainfall detected in Toledo City. Stay alert for possible flooding.";
     }
 
-    // OPTIONAL: PHIVOLCS Earthquake Data
-    const quakeRes = await fetch("https://earthquake.phivolcs.dost.gov.ph/php/latest/earthquake_events.json");
+    // --- EARTHQUAKE ---
+    console.log("Fetching PHIVOLCS earthquake data...");
+
+    const quakeRes = await fetch(
+      "https://earthquake.phivolcs.dost.gov.ph/php/latest/earthquake_events.json",
+      { agent: insecureAgent }    // SSL bypass fix
+    );
+
     const quakeData = await quakeRes.json();
-    const latestQuake = quakeData?.latest_earthquake || quakeData[0];
+
+    console.log("PHIVOLCS response:", quakeData);
+
+    const latestQuake =
+      quakeData?.latest_earthquake || quakeData[0];
 
     if (latestQuake && latestQuake.magnitude >= 4.5) {
-      message = `Earthquake Alert: M${latestQuake.magnitude} reported near ${latestQuake.location}.`;
+      message = `Earthquake Alert: Magnitude ${latestQuake.magnitude} near ${latestQuake.location}.`;
     }
 
     if (!message) {
+      console.log("No alerts triggered.");
       return res.send("No alerts triggered.");
     }
 
-    // Send notification to all registered users
+    // --- SEND PUSH NOTIFICATIONS ---
+    console.log("Sending alerts to", tokens.length, "devices...");
+
     for (const token of tokens) {
+      console.log("Sending to:", token);
+
       await fetch("https://exp.host/--/api/v2/push/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -78,14 +107,15 @@ app.get("/run-alerts", async (req, res) => {
       });
     }
 
+    console.log("Alerts sent.");
     res.send("Alerts sent.");
 
   } catch (err) {
-    console.error(err);
+    console.error("Error in run-alerts:", err);
     res.status(500).send("Error processing alerts");
   }
 });
 
-// Render requires a PORT
+// Render Port
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log("AlertAID backend running on port", PORT));
