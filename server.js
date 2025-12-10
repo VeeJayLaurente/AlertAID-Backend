@@ -54,42 +54,71 @@ const rain = current?.rain ?? 0;
 const showers = current?.showers ?? 0;
 const windSpeed = current?.wind_speed_10m ?? 0;
 const temperature = current?.temperature_2m ?? 0;
+const humidity = current?.relative_humidity_2m ?? 0;
 const pressure = current?.pressure_msl ?? 0;
 
-  console.log("Rain level:", rain, showers, windSpeed, temperature, pressure);
+console.log("Rain level:", rain, showers, windSpeed, temperature, pressure);
 
+// Determine temperature description
+let tempDesc = "";
+if (temperature >= 30) {
+  tempDesc = "🌡️ It's hot outside.";
+} else if (temperature >= 25) {
+  tempDesc = "🌡️ The weather is warm.";
+} else if (temperature >= 18) {
+  tempDesc = "🌡️ The weather is mild.";
+} else {
+  tempDesc = "🌡️ It's cold outside.";
+}
+
+// Build user-friendly weather message
 let messages = [];
-if (rain > 20) messages.push("Heavy rainfall detected in Toledo City. Stay alert for possible flooding and stay safe.");
-if (windSpeed > 20) messages.push("High winds detected within Toledo City. Secure outdoor objects and stay safe.");
-if (rain + showers > 20) messages.push("Severe rainfall detected within Toledo City. Make sure to stay indoors and stay safe.");
-message = messages.join(" ");
+
+// Warnings
+if (rain + showers > 20) {
+  messages.push("⚠️ Heavy rainfall expected. Please stay indoors and stay safe.");
+}
+if (windSpeed > 20) {
+  messages.push("💨 High winds detected. Secure outdoor items and stay cautious.");
+}
+
+// Weather stats with temperature description
+messages.push(
+  `${tempDesc} Current stats: Temperature: ${temperature.toFixed(1)}°C, 💧 Rain: ${rain + showers}mm, 🌬️ Wind: ${windSpeed.toFixed(1)} km/h, 💦 Humidity: ${humidity}%`
+);
+
+message = messages.join("\n");
+
+console.log("Weather message prepared:", message);
 
 
 
-    // --- EARTHQUAKE FETCH (USGS) ---
-    console.log("Fetching USGS earthquake data...");
-    const usgsUrl =
-      "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson";
-    const quakeRes = await fetch(usgsUrl);
-    const quakeData = await quakeRes.json();
 
-    // Filter earthquakes for the Philippines and mag >= 4.5
-    const phEarthquakes = quakeData.features.filter(
-      (f) =>
-        f.properties.place.toLowerCase().includes("philippines") &&
-        f.properties.mag >= 4.5
-    );
+  // --- EARTHQUAKE FETCH (USGS) ---
+console.log("Fetching USGS earthquake data...");
+const usgsUrl =
+  "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson";
+const quakeRes = await fetch(usgsUrl);
+const quakeData = await quakeRes.json();
 
-    if (phEarthquakes.length > 0) {
-      const quake = phEarthquakes[0];
-      message = `Earthquake Alert: Magnitude ${quake.properties.mag} near ${quake.properties.place}.`;
-      console.log("Earthquake detected:", message);
-    }
+// Filter earthquakes for the Philippines and mag >= 4.5
+const phEarthquakes = quakeData.features.filter(
+  (f) =>
+    f.properties.place.toLowerCase().includes("philippines") &&
+    f.properties.mag >= 4.5
+);
 
-    if (!message) {
-      console.log("No alerts triggered.");
-      return res.send("No alerts triggered.");
-    }
+if (phEarthquakes.length > 0) {
+  const quake = phEarthquakes[0];
+  const quakeTime = new Date(quake.properties.time).toLocaleString("en-PH", { timeZone: "Asia/Manila" });
+
+  message = `🌎 Earthquake detected near ${quake.properties.place}
+📏 Magnitude: ${quake.properties.mag}
+⏰ Time: ${quakeTime}
+⚠️ Safety tip: Stay away from buildings and heavy objects. Follow local safety instructions.`;
+
+  console.log("Earthquake message prepared:", message);
+}
 
  
 
