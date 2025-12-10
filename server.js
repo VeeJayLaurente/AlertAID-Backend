@@ -1,27 +1,7 @@
-// Utility function to retry fetch
-async function fetchWithRetry(url, options = {}, retries = 3, delayMs = 1000) {
-  for (let attempt = 1; attempt <= retries; attempt++) {
-    try {
-      const res = await fetch(url, options);
-      const contentType = res.headers.get("content-type") || "";
-      if (!contentType.includes("application/json")) {
-        const text = await res.text();
-        throw new Error(`Non-JSON response: ${text}`);
-      }
-      return await res.json();
-    } catch (err) {
-      console.warn(`Attempt ${attempt} failed: ${err.message}`);
-      if (attempt < retries) {
-        await new Promise((r) => setTimeout(r, delayMs));
-      } else {
-        throw err;
-      }
-    }
-  }
-}
-
+// Weather + Earthquake alerts
 app.get("/run-alerts", async (req, res) => {
   console.log("Running automated alert scan...");
+
   try {
     let message = null;
 
@@ -29,7 +9,9 @@ app.get("/run-alerts", async (req, res) => {
     const weatherURL =
       "https://api.open-meteo.com/v1/forecast?latitude=10.387&longitude=123.6502&hourly=temperature_2m,rain,wind_speed_10m";
 
-    const weatherData = await fetch(weatherURL).then((r) => r.json());
+    const weatherRes = await fetch(weatherURL);
+    const weatherData = await weatherRes.json();
+
     const rain = weatherData.hourly?.rain?.[0] ?? 0;
     console.log("Rain level:", rain);
 
@@ -39,17 +21,22 @@ app.get("/run-alerts", async (req, res) => {
 
     // --- EARTHQUAKE ---
     console.log("Fetching PHIVOLCS earthquake data...");
+
+    const quakeRes = await fetch(
+      "https://earthquake.phivolcs.dost.gov.ph/php/latest/earthquake_events.json",
+      { agent: insecureAgent }
+    );
+
+    const contentType = quakeRes.headers.get("content-type") || "";
     let quakeData;
-    try {
-      quakeData = await fetchWithRetry(
-        "https://earthquake.phivolcs.dost.gov.ph/php/latest/earthquake_events.json",
-        { agent: insecureAgent },
-        3,
-        2000
-      );
-      console.log("PHIVOLCS JSON received:", quakeData);
-    } catch (err) {
-      console.error("Failed to fetch PHIVOLCS data after retries:", err.message);
+
+    if (contentType.includes("application/json")) {
+      quakeData = await quakeRes.json();
+      console.log("PHIVOLCS response JSON received");
+    } else {
+      const text = await quakeRes.text();
+      console.error("PHIVOLCS returned non-JSON response:", text);
+      quakeData = null;
     }
 
     const latestQuake = quakeData?.latest_earthquake || quakeData?.[0];
