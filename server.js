@@ -79,6 +79,40 @@ app.get("/run-alerts", async (req, res) => {
       console.log("No alerts triggered.");
       return res.send("No alerts triggered.");
     }
+    
+    // --- TEST ALERT ROUTE ---
+app.get("/send-test-alert", async (req, res) => {
+  if (!tokens.length) {
+    console.log("No tokens registered for test alert.");
+    return res.send("No tokens registered.");
+  }
+
+  const message = "This is a test AlertAID notification. Everything is working!";
+  console.log("Sending test alert to", tokens.length, "devices...");
+
+  await Promise.all(
+    tokens.map(async (token) => {
+      try {
+        const response = await fetch("https://exp.host/--/api/v2/push/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            to: token,
+            title: "AlertAID Test Notification",
+            body: message,
+          }),
+        });
+        const result = await response.json();
+        console.log("Sent to:", token, "Response:", result);
+      } catch (err) {
+        console.error("Failed to send to token:", token, err);
+      }
+    })
+  );
+
+  console.log("Test alerts sent.");
+  res.send("Test alerts sent to all registered devices.");
+});
 
     // --- SEND PUSH NOTIFICATIONS ---
     console.log("Sending alerts to", tokens.length, "devices...");
