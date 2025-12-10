@@ -44,16 +44,26 @@ app.get("/run-alerts", async (req, res) => {
     let message = null;
 
     // --- WEATHER FETCH ---
-    const weatherURL =
-      "https://api.open-meteo.com/v1/forecast?latitude=10.387&longitude=123.6502&hourly=rain";
-    const weatherRes = await fetch(weatherURL);
-    const weatherData = await weatherRes.json();
-    const rain = weatherData.hourly?.rain?.[0] ?? 0;
-    console.log("Rain level:", rain);
+  const weatherURL = "https://api.open-meteo.com/v1/forecast?latitude=10.387&longitude=123.6502&current=temperature_2m,is_day,wind_speed_10m,wind_direction_10m,wind_gusts_10m,relative_humidity_2m,rain,showers,apparent_temperature,pressure_msl,precipitation";
 
-    if (rain > 20) {
-      message = "Severe rainfall detected in Toledo City. Stay alert for possible flooding.";
-    }
+const weatherRes = await fetch(weatherURL);
+const weatherData = await weatherRes.json();
+const current = weatherData.current_weather;
+
+const rain = current?.rain ?? 0;
+const showers = current?.showers ?? 0;
+const windSpeed = current?.wind_speed_10m ?? 0;
+const temperature = current?.temperature_2m ?? 0;
+const pressure = current?.pressure_msl ?? 0;
+
+  console.log("Rain level:", rain, showers, windSpeed, temperature, pressure);
+
+let messages = [];
+if (rain > 20) messages.push("Severe rainfall detected in Toledo City. Stay alert for possible flooding.");
+if (windSpeed > 20) messages.push("High winds detected. Secure outdoor objects and stay safe.");
+message = messages.join(" ");
+
+
 
     // --- EARTHQUAKE FETCH (USGS) ---
     console.log("Fetching USGS earthquake data...");
