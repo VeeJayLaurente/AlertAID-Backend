@@ -79,8 +79,40 @@ app.get("/run-alerts", async (req, res) => {
       console.log("No alerts triggered.");
       return res.send("No alerts triggered.");
     }
-    
-    // --- TEST ALERT ROUTE ---
+
+ 
+
+    // --- SEND PUSH NOTIFICATIONS ---
+    console.log("Sending alerts to", tokens.length, "devices...");
+    await Promise.all(
+      tokens.map(async (token) => {
+        try {
+          const response = await fetch("https://exp.host/--/api/v2/push/send", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              to: token,
+              title: "AlertAID Emergency Update",
+              body: message,
+            }),
+          });
+          const result = await response.json();
+          console.log("Sent to:", token, "Response:", result);
+        } catch (err) {
+          console.error("Failed to send to token:", token, err);
+        }
+      })
+    );
+
+    console.log("All alerts processed.");
+    res.send("Alerts processed.");
+  } catch (err) {
+    console.error("Error in run-alerts:", err);
+    res.status(500).send("Error processing alerts");
+  }
+});
+
+   // --- TEST ALERT ROUTE ---
 app.get("/send-test-alert", async (req, res) => {
   if (!tokens.length) {
     console.log("No tokens registered for test alert.");
@@ -113,37 +145,6 @@ app.get("/send-test-alert", async (req, res) => {
   console.log("Test alerts sent.");
   res.send("Test alerts sent to all registered devices.");
 });
-
-    // --- SEND PUSH NOTIFICATIONS ---
-    console.log("Sending alerts to", tokens.length, "devices...");
-    await Promise.all(
-      tokens.map(async (token) => {
-        try {
-          const response = await fetch("https://exp.host/--/api/v2/push/send", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              to: token,
-              title: "AlertAID Emergency Update",
-              body: message,
-            }),
-          });
-          const result = await response.json();
-          console.log("Sent to:", token, "Response:", result);
-        } catch (err) {
-          console.error("Failed to send to token:", token, err);
-        }
-      })
-    );
-
-    console.log("All alerts processed.");
-    res.send("Alerts processed.");
-  } catch (err) {
-    console.error("Error in run-alerts:", err);
-    res.status(500).send("Error processing alerts");
-  }
-});
-
 // RENDER PORT
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log("AlertAID backend running on port", PORT));
