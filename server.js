@@ -1,15 +1,9 @@
 import express from "express";
 import fetch from "node-fetch";
 import fs from "fs";
-import https from "https";
 
 const app = express();
 app.use(express.json());
-
-// Disable SSL verification only for PHIVOLCS
-const insecureAgent = new https.Agent({
-  rejectUnauthorized: false,
-});
 
 // Load tokens
 let tokens = [];
@@ -49,37 +43,36 @@ app.get("/run-alerts", async (req, res) => {
   try {
     let message = null;
 
-    // WEATHER FETCH
+    // --- WEATHER FETCH ---
     const weatherURL =
-      "https://api.open-meteo.com/v1/forecast?latitude=10.387&longitude=123.6502&hourly=temperature_2m,rain,wind_speed_10m";
+      "https://api.open-meteo.com/v1/forecast?latitude=10.387&longitude=123.6502&hourly=rain";
     const weatherRes = await fetch(weatherURL);
     const weatherData = await weatherRes.json();
     const rain = weatherData.hourly?.rain?.[0] ?? 0;
+    console.log("Rain level:", rain);
+
     if (rain > 20) {
       message = "Severe rainfall detected in Toledo City. Stay alert for possible flooding.";
     }
 
-    // EARTHQUAKE FETCH
-    console.log("Fetching PHIVOLCS earthquake data...");
-    const quakeRes = await fetch(
-      "https://earthquake.phivolcs.dost.gov.ph/php/latest/earthquake_events.json",
-      { agent: insecureAgent }
+    // --- EARTHQUAKE FETCH (USGS) ---
+    console.log("Fetching USGS earthquake data...");
+    const usgsUrl =
+      "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson";
+    const quakeRes = await fetch(usgsUrl);
+    const quakeData = await quakeRes.json();
+
+    // Filter earthquakes for the Philippines and mag >= 4.5
+    const phEarthquakes = quakeData.features.filter(
+      (f) =>
+        f.properties.place.toLowerCase().includes("philippines") &&
+        f.properties.mag >= 4.5
     );
-    const contentType = quakeRes.headers.get("content-type") || "";
-    let quakeData;
 
-    if (contentType.includes("application/json")) {
-      quakeData = await quakeRes.json();
-      console.log("PHIVOLCS response JSON received");
-    } else {
-      const text = await quakeRes.text();
-      console.error("PHIVOLCS returned non-JSON response:", text);
-      quakeData = null;
-    }
-
-    const latestQuake = quakeData?.latest_earthquake || quakeData?.[0];
-    if (latestQuake && latestQuake.magnitude >= 4.5) {
-      message = `Earthquake Alert: Magnitude ${latestQuake.magnitude} near ${latestQuake.location}.`;
+    if (phEarthquakes.length > 0) {
+      const quake = phEarthquakes[0];
+      message = `Earthquake Alert: Magnitude ${quake.properties.mag} near ${quake.properties.place}.`;
+      console.log("Earthquake detected:", message);
     }
 
     if (!message) {
@@ -87,7 +80,7 @@ app.get("/run-alerts", async (req, res) => {
       return res.send("No alerts triggered.");
     }
 
-    // SEND PUSH NOTIFICATIONS
+    // --- SEND PUSH NOTIFICATIONS ---
     console.log("Sending alerts to", tokens.length, "devices...");
     await Promise.all(
       tokens.map(async (token) => {
