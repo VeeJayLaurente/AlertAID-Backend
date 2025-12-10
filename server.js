@@ -48,7 +48,7 @@ app.get("/run-alerts", async (req, res) => {
 
 const weatherRes = await fetch(weatherURL);
 const weatherData = await weatherRes.json();
-const current = weatherData.current_weather;
+const current = weatherData.current;
 
 const rain = current?.rain ?? 0;
 const showers = current?.showers ?? 0;
@@ -59,8 +59,9 @@ const pressure = current?.pressure_msl ?? 0;
   console.log("Rain level:", rain, showers, windSpeed, temperature, pressure);
 
 let messages = [];
-if (rain > 20) messages.push("Severe rainfall detected in Toledo City. Stay alert for possible flooding.");
-if (windSpeed > 20) messages.push("High winds detected. Secure outdoor objects and stay safe.");
+if (rain > 20) messages.push("Heavy rainfall detected in Toledo City. Stay alert for possible flooding and stay safe.");
+if (windSpeed > 20) messages.push("High winds detected within Toledo City. Secure outdoor objects and stay safe.");
+if (rain + showers > 20) messages.push("Severe rainfall detected within Toledo City. Make sure to stay indoors and stay safe.");
 message = messages.join(" ");
 
 
